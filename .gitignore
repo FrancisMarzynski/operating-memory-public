@@ -1,0 +1,33 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+.venv/
+venv/
+
+# Local configuration and derived memory stores
+.env
+.env.*
+.envrc
+!.env.example
+*.sqlite
+*.sqlite3
+*.sqlite-*
+*.db
+*.db-*
+config/private-boundary-policy.txt
+
+# Deployment and dependency state
+node_modules/
+supabase/.temp/
+.vercel/
+
+# OS and editors
+.DS_Store
+.idea/
+.vscode/

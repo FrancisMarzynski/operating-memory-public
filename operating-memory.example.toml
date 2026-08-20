@@ -1,0 +1,22 @@
+version = 1
+notes_root = "example-notes"
+entity_kinds = ["project", "reference"]
+
+[[entities]]
+kind = "project"
+glob = "projects/*.md"
+key_from = "path"
+title_from = "first_heading"
+
+[entities.decisions]
+path_template = "{note_stem}.decisions.log"
+
+[[entities]]
+kind = "reference"
+glob = "references/*.md"
+key_from = "path"
+title_from = "filename"
+
+[[journals]]
+glob = "journal/*.md"
+date_pattern = "%Y-%m-%d"
