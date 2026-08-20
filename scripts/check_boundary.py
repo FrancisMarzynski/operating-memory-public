@@ -33,8 +33,10 @@ def _policy(path: Path | None) -> tuple[tuple[str, ...], tuple[str, ...]]:
     return tuple(markers), tuple(prefixes)
 
 
-def main(root: Path | None = None, policy: Path | None = None) -> int:
+def main(root: Path | None = None, policy: Path | None = None, require_policy: bool = False) -> int:
     root = (root or Path(__file__).resolve().parents[1]).resolve()
+    if require_policy and policy is None:
+        raise ValueError("a private policy is required for release verification")
     policy_markers, policy_prefixes = _policy(policy)
     markers = tuple(marker.casefold() for marker in policy_markers)
     prefixes = tuple(prefix.casefold() for prefix in (*PUBLIC_PATH_PREFIXES, *policy_prefixes))
@@ -65,13 +67,14 @@ def _arguments() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("root", nargs="?", type=Path)
     parser.add_argument("--policy", type=Path)
+    parser.add_argument("--require-policy", action="store_true")
     return parser.parse_args()
 
 
 if __name__ == "__main__":
     args = _arguments()
     try:
-        raise SystemExit(main(args.root, args.policy))
+        raise SystemExit(main(args.root, args.policy, args.require_policy))
     except (OSError, ValueError) as error:
         print(f"boundary policy error: {error}", file=sys.stderr)
         raise SystemExit(2) from error
