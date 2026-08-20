@@ -38,6 +38,8 @@ def main(root: Path | None = None, policy: Path | None = None, require_policy: b
     if require_policy and policy is None:
         raise ValueError("a private policy is required for release verification")
     policy_markers, policy_prefixes = _policy(policy)
+    if require_policy and not (policy_markers or policy_prefixes):
+        raise ValueError("private release policy must contain at least one rule")
     markers = tuple(marker.casefold() for marker in policy_markers)
     prefixes = tuple(prefix.casefold() for prefix in (*PUBLIC_PATH_PREFIXES, *policy_prefixes))
     suffixes = tuple(suffix.casefold() for suffix in PUBLIC_PATH_SUFFIXES)

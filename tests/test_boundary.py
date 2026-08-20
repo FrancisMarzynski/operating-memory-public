@@ -94,3 +94,15 @@ class BoundaryTests(unittest.TestCase):
 
         self.assertEqual(result.returncode, 2)
         self.assertIn("private policy is required", result.stderr)
+
+    def test_release_verification_rejects_an_empty_private_policy(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            policy = root / "policy.txt"
+            policy.write_text("# intentionally empty\n", encoding="utf-8")
+
+            guard = Path(__file__).resolve().parents[1] / "scripts/check_boundary.py"
+            result = subprocess.run([sys.executable, str(guard), "--require-policy", "--policy", str(policy)], text=True, capture_output=True)
+
+            self.assertEqual(result.returncode, 2)
+            self.assertIn("must contain at least one rule", result.stderr)
