@@ -81,7 +81,11 @@ def build_plan(config: MemoryConfig) -> ImportPlan:
             if not path.is_file():
                 continue
             relative = _relative(root, path)
-            body = path.read_text(encoding="utf-8")
+            try:
+                body = path.read_text(encoding="utf-8")
+            except (OSError, UnicodeDecodeError):
+                skipped.append(f"{relative}: unable to read entity note")
+                continue
             identity = _hash(rule.kind, relative)
             entity = Entity(identity, rule.kind, relative, _title(body, path.stem, rule.title_from), relative, body, "")
             entities.append(replace(entity, content_hash=_entity_hash(entity)))

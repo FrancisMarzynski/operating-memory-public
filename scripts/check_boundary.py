@@ -54,7 +54,15 @@ def main(root: Path | None = None, policy: Path | None = None, require_policy: b
         path = root / relative
         if not path.is_file():
             continue
-        content = path.read_bytes().decode("utf-8", errors="ignore").casefold()
+        try:
+            content = path.read_bytes().decode("utf-8")
+        except UnicodeDecodeError:
+            violations.append(f"{relative}: non-text tracked content is prohibited")
+            continue
+        if "\0" in content:
+            violations.append(f"{relative}: non-text tracked content is prohibited")
+            continue
+        content = content.casefold()
         if any(marker in content for marker in markers):
             violations.append(f"{relative}: prohibited boundary marker")
     if violations:

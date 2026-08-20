@@ -72,7 +72,7 @@ def main(arguments: Sequence[str] | None = None) -> int:
         decisions = store.decisions_for(args.kind, args.key)
         print(json.dumps([{"date": decision.date, "body": decision.body, "source_path": decision.source_path} for decision in decisions], sort_keys=True))
         return 0
-    except ConfigError as error:
+    except (ConfigError, ValueError) as error:
         parser.error(str(error))
     except sqlite3.Error as error:
         parser.error(f"database is unavailable for read-only access: {error}")

@@ -165,6 +165,14 @@ class ImporterTests(unittest.TestCase):
         self.assertEqual(len(plan.journals), 0)
         self.assertIn("journal/2026-01-04.md: unable to read journal", plan.skipped)
 
+    def test_unreadable_entity_notes_are_skipped(self) -> None:
+        (self.root / "notes/projects/nested/atlas.md").write_bytes(b"\xff\xfe")
+
+        plan = build_plan(self.config)
+
+        self.assertEqual(len(plan.entities), 1)
+        self.assertIn("projects/nested/atlas.md: unable to read entity note", plan.skipped)
+
     def test_rejects_symlinked_note_outside_notes_root(self) -> None:
         outside = self.root / "outside.md"
         outside.write_text("# Outside", encoding="utf-8")

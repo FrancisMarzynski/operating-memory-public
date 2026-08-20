@@ -31,7 +31,7 @@ class BoundaryTests(unittest.TestCase):
             self.assertIn("prohibited boundary path", result.stderr)
             self.assertIn("prohibited boundary marker", result.stderr)
 
-    def test_private_policy_matches_binary_content_case_insensitively(self) -> None:
+    def test_rejects_binary_content_before_private_policy_matching(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
             root = Path(temporary_directory)
             (root / "asset.bin").write_bytes(b"\x00pRiVaTe-IdEnTiFiEr\xff")
@@ -44,7 +44,20 @@ class BoundaryTests(unittest.TestCase):
             result = subprocess.run([sys.executable, str(guard), str(root), "--policy", str(policy)], text=True, capture_output=True)
 
             self.assertNotEqual(result.returncode, 0)
-            self.assertIn("asset.bin: prohibited boundary marker", result.stderr)
+            self.assertIn("asset.bin: non-text tracked content is prohibited", result.stderr)
+
+    def test_rejects_utf16_content(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            (root / "note.md").write_bytes("private-identifier".encode("utf-16"))
+            subprocess.run(["git", "init", "-q"], cwd=root, check=True)
+            subprocess.run(["git", "add", "."], cwd=root, check=True)
+
+            guard = Path(__file__).resolve().parents[1] / "scripts/check_boundary.py"
+            result = subprocess.run([sys.executable, str(guard), str(root)], text=True, capture_output=True)
+
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("note.md: non-text tracked content is prohibited", result.stderr)
 
     def test_public_guard_rejects_ui_assets_case_insensitively(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
