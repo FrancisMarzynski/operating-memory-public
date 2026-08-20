@@ -74,3 +74,10 @@ class BoundaryTests(unittest.TestCase):
 
             self.assertEqual(result.returncode, 2)
             self.assertIn("boundary policy error", result.stderr)
+
+    def test_release_verification_requires_private_policy(self) -> None:
+        root = Path(__file__).resolve().parents[1]
+        result = subprocess.run([sys.executable, "scripts/check_boundary.py", "--require-policy"], cwd=root, text=True, capture_output=True)
+
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("private policy is required", result.stderr)
