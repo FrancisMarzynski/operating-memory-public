@@ -3,10 +3,12 @@ from __future__ import annotations
 import sqlite3
 import tempfile
 import unittest
+from dataclasses import replace
 from pathlib import Path
 
 from operating_memory.config import load_config
 from operating_memory.importer import apply_plan, build_plan
+from operating_memory.model import Decision
 from operating_memory.store import MemoryStore
 
 CONFIG = """version = 1
@@ -85,10 +87,13 @@ class ImporterTests(unittest.TestCase):
 
     def test_apply_is_idempotent_and_updates_changed_note(self) -> None:
         database = self.root / "memory.sqlite"
-        first = apply_plan(MemoryStore(database), build_plan(self.config))
-        second = apply_plan(MemoryStore(database), build_plan(self.config))
+        with MemoryStore(database) as store:
+            first = apply_plan(store, build_plan(self.config))
+        with MemoryStore(database) as store:
+            second = apply_plan(store, build_plan(self.config))
         (self.root / "notes/references/guide.md").write_text("Changed reference", encoding="utf-8")
-        third = apply_plan(MemoryStore(database), build_plan(self.config))
+        with MemoryStore(database) as store:
+            third = apply_plan(store, build_plan(self.config))
 
         self.assertEqual((first.created, first.updated, first.unchanged), (4, 0, 0))
         self.assertEqual((second.created, second.updated, second.unchanged), (0, 0, 4))
@@ -98,7 +103,8 @@ class ImporterTests(unittest.TestCase):
 
     def test_filename_titles_and_derived_fields_update_records(self) -> None:
         database = self.root / "memory.sqlite"
-        apply_plan(MemoryStore(database), build_plan(self.config))
+        with MemoryStore(database) as store:
+            apply_plan(store, build_plan(self.config))
         config_text = CONFIG.replace('title_from = "first_heading"', 'title_from = "filename"')
         config_text = config_text.replace("{note_stem}.decisions.log", "{note_stem}.ledger.log")
         config_text = config_text.replace('date_pattern = "%Y-%m-%d"', 'date_pattern = "%Y-%d-%m"')
@@ -106,9 +112,10 @@ class ImporterTests(unittest.TestCase):
         (self.root / "notes/projects/nested/atlas.ledger.log").write_text(
             "2026-01-03 — Begin with a local store.\n", encoding="utf-8"
         )
-        report = apply_plan(
-            MemoryStore(database), build_plan(load_config(self.root / "operating-memory.toml"))
-        )
+        with MemoryStore(database) as store:
+            report = apply_plan(
+                store, build_plan(load_config(self.root / "operating-memory.toml"))
+            )
 
         self.assertEqual(report.updated, 3)
         entity = MemoryStore(database).get_entity("project", "projects/nested/atlas.md")
@@ -121,6 +128,24 @@ class ImporterTests(unittest.TestCase):
         finally:
             connection.close()
         self.assertEqual(journal_date, "2026-04-01")
+
+    def test_context_rolls_back_an_import_when_a_decision_has_no_entity(self) -> None:
+        database = self.root / "memory.sqlite"
+        plan = build_plan(self.config)
+        invalid_decision = Decision(
+            "missing-entity-decision",
+            "missing-entity",
+            "2026-01-05",
+            "Cannot be stored.",
+            "decisions.log",
+            "content-hash",
+        )
+
+        with self.assertRaises(sqlite3.IntegrityError):
+            with MemoryStore(database) as store:
+                apply_plan(store, replace(plan, decisions=(invalid_decision,)))
+
+        self.assertEqual(MemoryStore(database).list_kinds(), [])
 
     def test_first_heading_supports_markdown_headings_and_skips_code_fences(self) -> None:
         (self.root / "notes/projects/nested/atlas.md").write_text(
