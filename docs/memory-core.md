@@ -21,4 +21,10 @@ PYTHONPATH=src python -m operating_memory.cli --config operating-memory.toml --d
 
 `MemoryRepository` is the v1 storage boundary. Adapter authors can preserve importer semantics by providing `upsert`, `list_kinds`, `get_entity`, and `decisions_for`; `MemoryStore` is the local SQLite implementation. Project tooling uses `PYTHONPATH=src python -m unittest discover -s tests` and `python scripts/check_boundary.py` before review.
 
-The standard public boundary check rejects UI/runtime assets. During a private extraction and before release, maintainers must run `python scripts/check_boundary.py --require-policy --policy /secure/path/policy.txt`; it fails closed if that private policy is absent. Each policy line is either `marker VALUE` or `path-prefix VALUE`. The policy is a private release-control input, not source code or a public artifact.
+The standard public boundary check rejects UI/runtime assets. During a private extraction and before release, maintainers must create the private policy in a maintainer-controlled location outside the checkout, keep it untracked, and supply its real absolute path at invocation time:
+
+```sh
+python scripts/check_boundary.py --require-policy --policy "$POLICY_FILE"
+```
+
+`POLICY_FILE` must name the existing private policy file; it is never a repository setting or public artifact. Release verification fails closed when it is omitted, unreadable, malformed, or empty. Each policy line is either `marker VALUE` or `path-prefix VALUE`.
