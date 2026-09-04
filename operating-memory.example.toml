@@ -10,6 +10,7 @@ title_from = "first_heading"
 
 [entities.decisions]
 path_template = "{note_stem}.decisions.log"
+line_template = "{date} — {body}"
 
 [[entities]]
 kind = "reference"

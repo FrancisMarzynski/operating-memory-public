@@ -89,3 +89,51 @@ key_from = "path"
             )
             with self.assertRaisesRegex(ConfigError, "cannot escape"):
                 load_config(config_path)
+
+    def test_decision_line_template_defaults_to_the_existing_format(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            config_path = Path(temporary_directory) / "operating-memory.toml"
+            config_path.write_text(
+                """version = 1
+notes_root = "notes"
+entity_kinds = ["item"]
+[[entities]]
+kind = "item"
+glob = "*.md"
+key_from = "path"
+[entities.decisions]
+path_template = "{note_stem}.decisions.log"
+""",
+                encoding="utf-8",
+            )
+
+            config = load_config(config_path)
+
+            self.assertEqual(config.entities[0].decisions.line_template, "{date} — {body}")
+
+    def test_rejects_malformed_decision_line_templates(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            config_path = Path(temporary_directory) / "operating-memory.toml"
+            base = """version = 1
+notes_root = "notes"
+entity_kinds = ["item"]
+[[entities]]
+kind = "item"
+glob = "*.md"
+key_from = "path"
+[entities.decisions]
+path_template = "{note_stem}.decisions.log"
+line_template = %r
+"""
+            for template, reason in (
+                ("{date} — decision", "{body}"),
+                ("{date} — {body} {body}", "exactly once"),
+                ("{date}: {summary}", "unrecognised placeholder"),
+            ):
+                with self.subTest(template=template):
+                    config_path.write_text(base % template, encoding="utf-8")
+
+                    with self.assertRaisesRegex(
+                        ConfigError, r"entities\[0\]\.decisions\.line_template.*" + reason
+                    ):
+                        load_config(config_path)

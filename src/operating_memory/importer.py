@@ -13,8 +13,6 @@ from .config import MemoryConfig
 from .model import Decision, Entity, ImportPlan, ImportReport, JournalEntry
 from .store import MemoryRepository
 
-DECISION_LINE = re.compile(r"(\d{4}-\d{2}-\d{2}) — (.+)")
-
 
 def _hash(*values: str) -> str:
     return hashlib.sha256("\0".join(values).encode("utf-8")).hexdigest()
@@ -116,11 +114,12 @@ def build_plan(config: MemoryConfig) -> ImportPlan:
                         skipped.append(f"{log_relative}: unable to read decision log")
                         continue
                     for number, line in enumerate(log_lines, 1):
-                        match = DECISION_LINE.fullmatch(line)
+                        match = rule.decisions.line_pattern.fullmatch(line)
                         if not match:
                             skipped.append(f"{log_relative}: invalid decision line {number}")
                             continue
-                        date, decision_body = match.groups()
+                        date = match.group("date")
+                        decision_body = match.group("body")
                         try:
                             calendar_date.fromisoformat(date)
                         except ValueError:
