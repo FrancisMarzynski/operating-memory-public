@@ -23,8 +23,11 @@ class CliTests(unittest.TestCase):
             root = Path(temporary_directory)
             (root / "notes/items").mkdir(parents=True)
             (root / "notes/items/one.md").write_text("# One\n\nBody", encoding="utf-8")
-            (root / "notes/items/one.choices.log").write_text("2026-02-01 — Keep it local.\n", encoding="utf-8")
-            (root / "operating-memory.toml").write_text('''version = 1
+            (root / "notes/items/one.choices.log").write_text(
+                "2026-02-01 — Keep it local.\n", encoding="utf-8"
+            )
+            (root / "operating-memory.toml").write_text(
+                """version = 1
 notes_root = "notes"
 entity_kinds = ["item"]
 [[entities]]
@@ -33,13 +36,54 @@ glob = "items/*.md"
 key_from = "path"
 [entities.decisions]
 path_template = "{note_stem}.choices.log"
-''', encoding="utf-8")
+""",
+                encoding="utf-8",
+            )
             database = root / "memory.sqlite"
             output = io.StringIO()
             with redirect_stdout(output):
-                self.assertEqual(main(["--config", str(root / "operating-memory.toml"), "--database", str(database), "import", "--apply"]), 0)
-                self.assertEqual(main(["--config", str(root / "operating-memory.toml"), "--database", str(database), "entity", "get", "item", "items/one.md"]), 0)
-                self.assertEqual(main(["--config", str(root / "operating-memory.toml"), "--database", str(database), "decisions", "item", "items/one.md"]), 0)
+                self.assertEqual(
+                    main(
+                        [
+                            "--config",
+                            str(root / "operating-memory.toml"),
+                            "--database",
+                            str(database),
+                            "import",
+                            "--apply",
+                        ]
+                    ),
+                    0,
+                )
+                self.assertEqual(
+                    main(
+                        [
+                            "--config",
+                            str(root / "operating-memory.toml"),
+                            "--database",
+                            str(database),
+                            "entity",
+                            "get",
+                            "item",
+                            "items/one.md",
+                        ]
+                    ),
+                    0,
+                )
+                self.assertEqual(
+                    main(
+                        [
+                            "--config",
+                            str(root / "operating-memory.toml"),
+                            "--database",
+                            str(database),
+                            "decisions",
+                            "item",
+                            "items/one.md",
+                        ]
+                    ),
+                    0,
+                )
             self.assertIn("created=2", output.getvalue())
             self.assertIn("One", output.getvalue())
             self.assertIn("Keep it local.", output.getvalue())
@@ -49,14 +93,17 @@ path_template = "{note_stem}.choices.log"
             root = Path(temporary_directory)
             (root / "notes").mkdir()
             (root / "notes" / "one.md").write_text("# One\n", encoding="utf-8")
-            (root / "operating-memory.toml").write_text('''version = 1
+            (root / "operating-memory.toml").write_text(
+                """version = 1
 notes_root = "notes"
 entity_kinds = ["item"]
 [[entities]]
 kind = "item"
 glob = "*.md"
 key_from = "path"
-''', encoding="utf-8")
+""",
+                encoding="utf-8",
+            )
             database = root / "memory.sqlite"
             database.write_text("not a database", encoding="utf-8")
             result = subprocess.run(
@@ -85,16 +132,22 @@ key_from = "path"
             root = Path(temporary_directory)
             (root / "notes").mkdir()
             config = root / "operating-memory.toml"
-            config.write_text('''version = 1
+            config.write_text(
+                """version = 1
 notes_root = "notes"
 entity_kinds = ["item"]
 [[entities]]
 kind = "item"
 glob = "*.md"
 key_from = "path"
-''', encoding="utf-8")
+""",
+                encoding="utf-8",
+            )
             database = root / "missing.sqlite"
-            self.assertEqual(main(["--config", str(config), "--database", str(database), "import", "--dry-run"]), 0)
+            self.assertEqual(
+                main(["--config", str(config), "--database", str(database), "import", "--dry-run"]),
+                0,
+            )
             self.assertFalse(database.exists())
             with self.assertRaises(SystemExit) as exited:
                 main(["--config", str(config), "--database", str(database), "kinds"])
@@ -106,9 +159,14 @@ key_from = "path"
             self.assertEqual(exited.exception.code, 2)
             connection = sqlite3.connect(database)
             try:
-                tables = connection.execute("SELECT name FROM sqlite_master WHERE type = 'table'").fetchall()
+                tables = connection.execute(
+                    "SELECT name FROM sqlite_master WHERE type = 'table'"
+                ).fetchall()
             finally:
                 connection.close()
             self.assertEqual(tables, [])
-            self.assertEqual(main(["--config", str(config), "--database", str(database), "config", "validate"]), 0)
+            self.assertEqual(
+                main(["--config", str(config), "--database", str(database), "config", "validate"]),
+                0,
+            )
             self.assertTrue(database.exists())

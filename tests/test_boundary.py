@@ -10,7 +10,9 @@ from pathlib import Path
 class BoundaryTests(unittest.TestCase):
     def test_tracked_content_passes_public_guard(self) -> None:
         root = Path(__file__).resolve().parents[1]
-        result = subprocess.run([sys.executable, "scripts/check_boundary.py"], cwd=root, text=True, capture_output=True)
+        result = subprocess.run(
+            [sys.executable, "scripts/check_boundary.py"], cwd=root, text=True, capture_output=True
+        )
         self.assertEqual(result.returncode, 0, result.stderr)
 
     def test_private_policy_rejects_configured_content_and_path(self) -> None:
@@ -20,12 +22,18 @@ class BoundaryTests(unittest.TestCase):
             (root / "private-root" / "note.md").write_text("ordinary text", encoding="utf-8")
             (root / "note.md").write_text("private-identifier", encoding="utf-8")
             policy = root / "policy.txt"
-            policy.write_text("marker private-identifier\npath-prefix private-root/\n", encoding="utf-8")
+            policy.write_text(
+                "marker private-identifier\npath-prefix private-root/\n", encoding="utf-8"
+            )
             subprocess.run(["git", "init", "-q"], cwd=root, check=True)
             subprocess.run(["git", "add", "."], cwd=root, check=True)
 
             guard = Path(__file__).resolve().parents[1] / "scripts/check_boundary.py"
-            result = subprocess.run([sys.executable, str(guard), str(root), "--policy", str(policy)], text=True, capture_output=True)
+            result = subprocess.run(
+                [sys.executable, str(guard), str(root), "--policy", str(policy)],
+                text=True,
+                capture_output=True,
+            )
 
             self.assertNotEqual(result.returncode, 0)
             self.assertIn("prohibited boundary path", result.stderr)
@@ -41,7 +49,11 @@ class BoundaryTests(unittest.TestCase):
             subprocess.run(["git", "add", "."], cwd=root, check=True)
 
             guard = Path(__file__).resolve().parents[1] / "scripts/check_boundary.py"
-            result = subprocess.run([sys.executable, str(guard), str(root), "--policy", str(policy)], text=True, capture_output=True)
+            result = subprocess.run(
+                [sys.executable, str(guard), str(root), "--policy", str(policy)],
+                text=True,
+                capture_output=True,
+            )
 
             self.assertNotEqual(result.returncode, 0)
             self.assertIn("asset.bin: non-text tracked content is prohibited", result.stderr)
@@ -54,7 +66,9 @@ class BoundaryTests(unittest.TestCase):
             subprocess.run(["git", "add", "."], cwd=root, check=True)
 
             guard = Path(__file__).resolve().parents[1] / "scripts/check_boundary.py"
-            result = subprocess.run([sys.executable, str(guard), str(root)], text=True, capture_output=True)
+            result = subprocess.run(
+                [sys.executable, str(guard), str(root)], text=True, capture_output=True
+            )
 
             self.assertNotEqual(result.returncode, 0)
             self.assertIn("note.md: non-text tracked content is prohibited", result.stderr)
@@ -68,7 +82,9 @@ class BoundaryTests(unittest.TestCase):
             subprocess.run(["git", "add", "."], cwd=root, check=True)
 
             guard = Path(__file__).resolve().parents[1] / "scripts/check_boundary.py"
-            result = subprocess.run([sys.executable, str(guard), str(root)], text=True, capture_output=True)
+            result = subprocess.run(
+                [sys.executable, str(guard), str(root)], text=True, capture_output=True
+            )
 
             self.assertNotEqual(result.returncode, 0)
             self.assertIn("UI/screen.tsx: prohibited boundary path", result.stderr)
@@ -83,14 +99,23 @@ class BoundaryTests(unittest.TestCase):
             subprocess.run(["git", "add", "."], cwd=root, check=True)
 
             guard = Path(__file__).resolve().parents[1] / "scripts/check_boundary.py"
-            result = subprocess.run([sys.executable, str(guard), str(root), "--policy", str(policy)], text=True, capture_output=True)
+            result = subprocess.run(
+                [sys.executable, str(guard), str(root), "--policy", str(policy)],
+                text=True,
+                capture_output=True,
+            )
 
             self.assertEqual(result.returncode, 2)
             self.assertIn("boundary policy error", result.stderr)
 
     def test_release_verification_requires_private_policy(self) -> None:
         root = Path(__file__).resolve().parents[1]
-        result = subprocess.run([sys.executable, "scripts/check_boundary.py", "--require-policy"], cwd=root, text=True, capture_output=True)
+        result = subprocess.run(
+            [sys.executable, "scripts/check_boundary.py", "--require-policy"],
+            cwd=root,
+            text=True,
+            capture_output=True,
+        )
 
         self.assertEqual(result.returncode, 2)
         self.assertIn("private policy is required", result.stderr)
@@ -102,7 +127,11 @@ class BoundaryTests(unittest.TestCase):
             policy.write_text("# intentionally empty\n", encoding="utf-8")
 
             guard = Path(__file__).resolve().parents[1] / "scripts/check_boundary.py"
-            result = subprocess.run([sys.executable, str(guard), "--require-policy", "--policy", str(policy)], text=True, capture_output=True)
+            result = subprocess.run(
+                [sys.executable, str(guard), "--require-policy", "--policy", str(policy)],
+                text=True,
+                capture_output=True,
+            )
 
             self.assertEqual(result.returncode, 2)
             self.assertIn("must contain at least one rule", result.stderr)

@@ -1,16 +1,15 @@
 from __future__ import annotations
 
+import sqlite3
 import tempfile
 import unittest
-import sqlite3
 from pathlib import Path
 
 from operating_memory.config import load_config
 from operating_memory.importer import apply_plan, build_plan
 from operating_memory.store import MemoryStore
 
-
-CONFIG = '''version = 1
+CONFIG = """version = 1
 notes_root = "notes"
 entity_kinds = ["project", "reference"]
 
@@ -31,7 +30,7 @@ key_from = "path"
 [[journals]]
 glob = "journal/*.md"
 date_pattern = "%Y-%m-%d"
-'''
+"""
 
 
 class RecordingRepository:
@@ -60,8 +59,12 @@ class ImporterTests(unittest.TestCase):
         (self.root / "notes/references").mkdir()
         (self.root / "notes/journal").mkdir()
         (self.root / "operating-memory.toml").write_text(CONFIG, encoding="utf-8")
-        (self.root / "notes/projects/nested/atlas.md").write_text("# Atlas\n\nA generic project.\n", encoding="utf-8")
-        (self.root / "notes/projects/nested/atlas.decisions.log").write_text("2026-01-03 — Begin with a local store.\nbad line\n", encoding="utf-8")
+        (self.root / "notes/projects/nested/atlas.md").write_text(
+            "# Atlas\n\nA generic project.\n", encoding="utf-8"
+        )
+        (self.root / "notes/projects/nested/atlas.decisions.log").write_text(
+            "2026-01-03 — Begin with a local store.\nbad line\n", encoding="utf-8"
+        )
         (self.root / "notes/references/guide.md").write_text("Reference body", encoding="utf-8")
         (self.root / "notes/journal/2026-01-04.md").write_text("Journal body", encoding="utf-8")
         self.config = load_config(self.root / "operating-memory.toml")
@@ -75,7 +78,9 @@ class ImporterTests(unittest.TestCase):
         self.assertEqual(len(plan.entities), 2)
         self.assertEqual(len(plan.decisions), 1)
         self.assertEqual(len(plan.journals), 1)
-        self.assertEqual(plan.skipped, ("projects/nested/atlas.decisions.log: invalid decision line 2",))
+        self.assertEqual(
+            plan.skipped, ("projects/nested/atlas.decisions.log: invalid decision line 2",)
+        )
         self.assertFalse((self.root / "memory.sqlite").exists())
 
     def test_apply_is_idempotent_and_updates_changed_note(self) -> None:
@@ -95,11 +100,15 @@ class ImporterTests(unittest.TestCase):
         database = self.root / "memory.sqlite"
         apply_plan(MemoryStore(database), build_plan(self.config))
         config_text = CONFIG.replace('title_from = "first_heading"', 'title_from = "filename"')
-        config_text = config_text.replace('{note_stem}.decisions.log', '{note_stem}.ledger.log')
+        config_text = config_text.replace("{note_stem}.decisions.log", "{note_stem}.ledger.log")
         config_text = config_text.replace('date_pattern = "%Y-%m-%d"', 'date_pattern = "%Y-%d-%m"')
         (self.root / "operating-memory.toml").write_text(config_text, encoding="utf-8")
-        (self.root / "notes/projects/nested/atlas.ledger.log").write_text("2026-01-03 — Begin with a local store.\n", encoding="utf-8")
-        report = apply_plan(MemoryStore(database), build_plan(load_config(self.root / "operating-memory.toml")))
+        (self.root / "notes/projects/nested/atlas.ledger.log").write_text(
+            "2026-01-03 — Begin with a local store.\n", encoding="utf-8"
+        )
+        report = apply_plan(
+            MemoryStore(database), build_plan(load_config(self.root / "operating-memory.toml"))
+        )
 
         self.assertEqual(report.updated, 3)
         entity = MemoryStore(database).get_entity("project", "projects/nested/atlas.md")
@@ -114,7 +123,9 @@ class ImporterTests(unittest.TestCase):
         self.assertEqual(journal_date, "2026-04-01")
 
     def test_first_heading_supports_markdown_headings_and_skips_code_fences(self) -> None:
-        (self.root / "notes/projects/nested/atlas.md").write_text("```markdown\n# Not the title\n```\n\nAtlas heading\n===\n", encoding="utf-8")
+        (self.root / "notes/projects/nested/atlas.md").write_text(
+            "```markdown\n# Not the title\n```\n\nAtlas heading\n===\n", encoding="utf-8"
+        )
 
         plan = build_plan(self.config)
 
@@ -130,12 +141,19 @@ class ImporterTests(unittest.TestCase):
 
     def test_per_note_logs_and_invalid_calendar_dates(self) -> None:
         (self.root / "notes/projects/nested/boreal.md").write_text("# Boreal", encoding="utf-8")
-        (self.root / "notes/projects/nested/boreal.decisions.log").write_text("2026-02-30 — Impossible date.\n2026-02-02 — Separate log.\n", encoding="utf-8")
+        (self.root / "notes/projects/nested/boreal.decisions.log").write_text(
+            "2026-02-30 — Impossible date.\n2026-02-02 — Separate log.\n", encoding="utf-8"
+        )
         plan = build_plan(self.config)
 
         self.assertEqual(len(plan.decisions), 2)
-        self.assertIn("projects/nested/boreal.decisions.log: invalid decision date on line 1", plan.skipped)
-        self.assertEqual({decision.source_path for decision in plan.decisions}, {"projects/nested/atlas.decisions.log", "projects/nested/boreal.decisions.log"})
+        self.assertIn(
+            "projects/nested/boreal.decisions.log: invalid decision date on line 1", plan.skipped
+        )
+        self.assertEqual(
+            {decision.source_path for decision in plan.decisions},
+            {"projects/nested/atlas.decisions.log", "projects/nested/boreal.decisions.log"},
+        )
 
     def test_unreadable_optional_decision_logs_are_skipped(self) -> None:
         directory_log = self.root / "notes/projects/nested/atlas.decisions.log"

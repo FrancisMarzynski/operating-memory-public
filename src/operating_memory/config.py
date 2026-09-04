@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
+import tomllib
 from dataclasses import dataclass
 from pathlib import Path
-import tomllib
 
 
 class ConfigError(ValueError):
@@ -61,7 +61,11 @@ def load_config(path: Path) -> MemoryConfig:
     notes_root_value = _required_string(raw.get("notes_root"), "notes_root")
     notes_root = (path.parent / notes_root_value).resolve()
     kinds = raw.get("entity_kinds")
-    if not isinstance(kinds, list) or not kinds or any(not isinstance(kind, str) or not kind for kind in kinds):
+    if (
+        not isinstance(kinds, list)
+        or not kinds
+        or any(not isinstance(kind, str) or not kind for kind in kinds)
+    ):
         raise ConfigError("entity_kinds must be a non-empty list of strings")
 
     raw_entities = raw.get("entities")
@@ -87,19 +91,40 @@ def load_config(path: Path) -> MemoryConfig:
             if not isinstance(decision, dict):
                 raise ConfigError(f"{field}.decisions must be a table")
             template_field = f"{field}.decisions.path_template"
-            template = _safe_relative(_required_string(decision.get("path_template"), template_field), template_field)
+            template = _safe_relative(
+                _required_string(decision.get("path_template"), template_field), template_field
+            )
             remainder = template.replace("{note_stem}", "")
             if template.count("{note_stem}") != 1 or "{" in remainder or "}" in remainder:
-                raise ConfigError(f"{template_field} must contain exactly one {{note_stem}} placeholder")
+                raise ConfigError(
+                    f"{template_field} must contain exactly one {{note_stem}} placeholder"
+                )
             decision_rule = DecisionRule(template)
-        entities.append(EntityRule(kind, _safe_relative(_required_string(item.get("glob"), f"{field}.glob"), f"{field}.glob"), key_from, title_from, decision_rule))
+        entities.append(
+            EntityRule(
+                kind,
+                _safe_relative(
+                    _required_string(item.get("glob"), f"{field}.glob"), f"{field}.glob"
+                ),
+                key_from,
+                title_from,
+                decision_rule,
+            )
+        )
 
     journals: list[JournalRule] = []
     for index, item in enumerate(raw.get("journals", [])):
         field = f"journals[{index}]"
         if not isinstance(item, dict):
             raise ConfigError(f"{field} must be a table")
-        journals.append(JournalRule(_safe_relative(_required_string(item.get("glob"), f"{field}.glob"), f"{field}.glob"), _required_string(item.get("date_pattern"), f"{field}.date_pattern")))
+        journals.append(
+            JournalRule(
+                _safe_relative(
+                    _required_string(item.get("glob"), f"{field}.glob"), f"{field}.glob"
+                ),
+                _required_string(item.get("date_pattern"), f"{field}.date_pattern"),
+            )
+        )
     return MemoryConfig(1, notes_root, tuple(kinds), tuple(entities), tuple(journals))
 
 

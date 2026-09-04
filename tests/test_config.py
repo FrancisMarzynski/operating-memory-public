@@ -44,17 +44,21 @@ title_from = "first_heading"
     def test_requires_a_true_integer_version_and_safe_per_note_log_template(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
             config_path = Path(temporary_directory) / "operating-memory.toml"
-            config_path.write_text('''version = true
+            config_path.write_text(
+                """version = true
 notes_root = "notes"
 entity_kinds = ["item"]
 [[entities]]
 kind = "item"
 glob = "*.md"
 key_from = "path"
-''', encoding="utf-8")
+""",
+                encoding="utf-8",
+            )
             with self.assertRaisesRegex(ConfigError, "version"):
                 load_config(config_path)
-            config_path.write_text('''version = 1
+            config_path.write_text(
+                """version = 1
 notes_root = "notes"
 entity_kinds = ["item"]
 [[entities]]
@@ -63,7 +67,9 @@ glob = "*.md"
 key_from = "path"
 [entities.decisions]
 path_template = "decisions.log"
-''', encoding="utf-8")
+""",
+                encoding="utf-8",
+            )
             with self.assertRaisesRegex(ConfigError, "path_template"):
                 load_config(config_path)
 
@@ -71,14 +77,14 @@ path_template = "decisions.log"
         with tempfile.TemporaryDirectory() as temporary_directory:
             config_path = Path(temporary_directory) / "operating-memory.toml"
             config_path.write_text(
-                '''version = 1
+                """version = 1
 notes_root = "notes"
 entity_kinds = ["item"]
 [[entities]]
 kind = "item"
 glob = "../outside/*.md"
 key_from = "path"
-''',
+""",
                 encoding="utf-8",
             )
             with self.assertRaisesRegex(ConfigError, "cannot escape"):

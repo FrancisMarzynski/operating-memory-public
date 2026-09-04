@@ -8,9 +8,40 @@ import subprocess
 import sys
 from pathlib import Path
 
-
-PUBLIC_PATH_PREFIXES = ("ui/", "app/", "pages/", "components/", "frontend/", "public/", "assets/", "static/", "bin/", "launchd/")
-PUBLIC_PATH_SUFFIXES = (".tsx", ".jsx", ".vue", ".svelte", ".html", ".css", ".scss", ".sass", ".less", ".svg", ".ico", ".png", ".jpg", ".jpeg", ".gif", ".webp", ".woff", ".woff2", ".ttf", ".otf")
+PUBLIC_PATH_PREFIXES = (
+    "ui/",
+    "app/",
+    "pages/",
+    "components/",
+    "frontend/",
+    "public/",
+    "assets/",
+    "static/",
+    "bin/",
+    "launchd/",
+)
+PUBLIC_PATH_SUFFIXES = (
+    ".tsx",
+    ".jsx",
+    ".vue",
+    ".svelte",
+    ".html",
+    ".css",
+    ".scss",
+    ".sass",
+    ".less",
+    ".svg",
+    ".ico",
+    ".png",
+    ".jpg",
+    ".jpeg",
+    ".gif",
+    ".webp",
+    ".woff",
+    ".woff2",
+    ".ttf",
+    ".otf",
+)
 
 
 def _policy(path: Path | None) -> tuple[tuple[str, ...], tuple[str, ...]]:
@@ -43,7 +74,9 @@ def main(root: Path | None = None, policy: Path | None = None, require_policy: b
     markers = tuple(marker.casefold() for marker in policy_markers)
     prefixes = tuple(prefix.casefold() for prefix in (*PUBLIC_PATH_PREFIXES, *policy_prefixes))
     suffixes = tuple(suffix.casefold() for suffix in PUBLIC_PATH_SUFFIXES)
-    tracked = subprocess.run(["git", "ls-files"], cwd=root, check=True, text=True, capture_output=True).stdout.splitlines()
+    tracked = subprocess.run(
+        ["git", "ls-files"], cwd=root, check=True, text=True, capture_output=True
+    ).stdout.splitlines()
     violations: list[str] = []
     for relative in tracked:
         normalized_relative = relative.casefold()

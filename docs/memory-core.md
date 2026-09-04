@@ -19,6 +19,13 @@ PYTHONPATH=src python -m operating_memory.cli --config operating-memory.toml --d
 
 `import` has no implicit mode: it fails unless either `--dry-run` or `--apply` is present. Dry runs only read notes and never create or open the database; applies upsert deterministic records. Read-only commands open an existing SQLite database without creating a file or schema. An entity identity is derived from kind and source-relative path, while a decision identity derives from its entity, date, and body.
 
-`MemoryRepository` is the v1 storage boundary. Adapter authors can preserve importer semantics by providing `upsert`, `list_kinds`, `get_entity`, and `decisions_for`; `MemoryStore` is the local SQLite implementation. Project tooling uses `PYTHONPATH=src python -m unittest discover -s tests` and `python scripts/check_boundary.py` before review.
+`MemoryRepository` is the v1 storage boundary. Adapter authors can preserve importer semantics by providing `upsert`, `list_kinds`, `get_entity`, and `decisions_for`; `MemoryStore` is the local SQLite implementation. Install the development toolchain with `uv sync --group dev`, then run the same checks as CI:
+
+```sh
+uv run ruff check .
+uv run mypy src
+uv run pytest
+uv run python scripts/check_boundary.py
+```
 
 The standard public boundary check rejects UI/runtime assets. During a private extraction and before release, maintainers must run `python scripts/check_boundary.py --require-policy --policy /secure/path/policy.txt`; it fails closed if that private policy is absent. Each policy line is either `marker VALUE` or `path-prefix VALUE`. The policy is a private release-control input, not source code or a public artifact.
