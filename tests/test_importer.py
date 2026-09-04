@@ -155,6 +155,26 @@ class ImporterTests(unittest.TestCase):
             {"projects/nested/atlas.decisions.log", "projects/nested/boreal.decisions.log"},
         )
 
+    def test_imports_a_configured_decision_line_separator_and_reports_non_matches(self) -> None:
+        config_text = CONFIG.replace(
+            'path_template = "{note_stem}.decisions.log"',
+            'path_template = "{note_stem}.decisions.log"\nline_template = "{date}: {body}"',
+        )
+        (self.root / "operating-memory.toml").write_text(config_text, encoding="utf-8")
+        (self.root / "notes/projects/nested/atlas.decisions.log").write_text(
+            "2026-01-03: Begin with a local store.\n2026-01-04 — Wrong separator.\n",
+            encoding="utf-8",
+        )
+
+        plan = build_plan(load_config(self.root / "operating-memory.toml"))
+
+        self.assertEqual(len(plan.decisions), 1)
+        self.assertEqual(plan.decisions[0].body, "Begin with a local store.")
+        self.assertEqual(
+            plan.skipped,
+            ("projects/nested/atlas.decisions.log: invalid decision line 2",),
+        )
+
     def test_unreadable_optional_decision_logs_are_skipped(self) -> None:
         directory_log = self.root / "notes/projects/nested/atlas.decisions.log"
         directory_log.unlink()

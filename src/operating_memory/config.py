@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 import tomllib
 from dataclasses import dataclass
 from pathlib import Path
@@ -14,6 +15,8 @@ class ConfigError(ValueError):
 @dataclass(frozen=True)
 class DecisionRule:
     path_template: str
+    line_template: str
+    line_pattern: re.Pattern[str]
 
 
 @dataclass(frozen=True)
@@ -99,7 +102,14 @@ def load_config(path: Path) -> MemoryConfig:
                 raise ConfigError(
                     f"{template_field} must contain exactly one {{note_stem}} placeholder"
                 )
-            decision_rule = DecisionRule(template)
+            line_template_field = f"{field}.decisions.line_template"
+            line_template = decision.get("line_template", "{date} — {body}")
+            line_template = _required_string(line_template, line_template_field)
+            decision_rule = DecisionRule(
+                template,
+                line_template,
+                _compile_decision_line_template(line_template, line_template_field),
+            )
         entities.append(
             EntityRule(
                 kind,
@@ -133,3 +143,35 @@ def _safe_relative(value: str, field: str) -> str:
     if candidate.is_absolute() or ".." in candidate.parts:
         raise ConfigError(f"{field} must be relative to notes_root and cannot escape it")
     return value
+
+
+_TEMPLATE_PLACEHOLDER = re.compile(r"\{([^{}]*)\}")
+
+
+def _compile_decision_line_template(template: str, field: str) -> re.Pattern[str]:
+    """Compile a literal decision-line template with one date and body placeholder."""
+    placeholders = list(_TEMPLATE_PLACEHOLDER.finditer(template))
+    if "{" in _TEMPLATE_PLACEHOLDER.sub("", template) or "}" in _TEMPLATE_PLACEHOLDER.sub(
+        "", template
+    ):
+        raise ConfigError(f"{field} has malformed placeholder syntax")
+    names = [placeholder.group(1) for placeholder in placeholders]
+    unknown = next((name for name in names if name not in {"date", "body"}), None)
+    if unknown is not None:
+        raise ConfigError(
+            f"{field} has unrecognised placeholder {{{unknown}}}; expected {{date}} or {{body}}"
+        )
+    if names.count("date") != 1 or names.count("body") != 1:
+        raise ConfigError(f"{field} must contain {{date}} and {{body}} exactly once")
+
+    pattern_parts: list[str] = []
+    cursor = 0
+    for placeholder in placeholders:
+        pattern_parts.append(re.escape(template[cursor : placeholder.start()]))
+        if placeholder.group(1) == "date":
+            pattern_parts.append(r"(?P<date>\d{4}-\d{2}-\d{2})")
+        else:
+            pattern_parts.append(r"(?P<body>.+)")
+        cursor = placeholder.end()
+    pattern_parts.append(re.escape(template[cursor:]))
+    return re.compile("".join(pattern_parts))
