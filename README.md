@@ -10,7 +10,9 @@ authoritative and derives a local SQLite projection from them for queries.
 The source records are ordinary Markdown files:
 
 - **Entities** describe durable things, such as a project or reference.
-- **Decisions** are append-only dated lines associated with an entity.
+- **Decisions** are append-only dated lines associated with an entity. The
+  line format is declared in configuration, so your own decision-log
+  convention works without changing code.
 - **Journal entries** are dated Markdown files for temporal records.
 
 The database is derived data, never a replacement for those notes. Record
@@ -41,7 +43,17 @@ uv run om --config operating-memory.example.toml --database "$om_example_dir/mem
 ```
 
 Adapt `operating-memory.example.toml` and the example notes to point at your own
-Markdown files. [The local memory-core guide](docs/memory-core.md) documents the
+Markdown files. If your decision logs do not use the default
+`{date} — {body}` form, declare your own, for example:
+
+```toml
+[entities.decisions]
+path_template = "{note_stem}.decisions.log"
+line_template = "{date} | {body}"
+```
+
+Malformed templates are rejected when the configuration loads, with an error
+naming the field. [The local memory-core guide](docs/memory-core.md) documents the
 configuration format and command semantics.
 
 ## Development
