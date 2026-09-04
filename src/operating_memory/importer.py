@@ -2,17 +2,16 @@
 
 from __future__ import annotations
 
+import hashlib
+import re
+from dataclasses import replace
 from datetime import date as calendar_date
 from datetime import datetime
-from dataclasses import replace
-import hashlib
 from pathlib import Path
-import re
 
 from .config import MemoryConfig
 from .model import Decision, Entity, ImportPlan, ImportReport, JournalEntry
 from .store import MemoryRepository
-
 
 DECISION_LINE = re.compile(r"(\d{4}-\d{2}-\d{2}) — (.+)")
 
@@ -58,11 +57,19 @@ def _title(body: str, fallback: str, source: str) -> str:
 
 
 def _entity_hash(entity: Entity) -> str:
-    return _hash(entity.identity, entity.kind, entity.key, entity.title, entity.source_path, entity.body)
+    return _hash(
+        entity.identity, entity.kind, entity.key, entity.title, entity.source_path, entity.body
+    )
 
 
 def _decision_hash(decision: Decision) -> str:
-    return _hash(decision.identity, decision.entity_identity, decision.date, decision.body, decision.source_path)
+    return _hash(
+        decision.identity,
+        decision.entity_identity,
+        decision.date,
+        decision.body,
+        decision.source_path,
+    )
 
 
 def _journal_hash(journal: JournalEntry) -> str:
@@ -87,10 +94,20 @@ def build_plan(config: MemoryConfig) -> ImportPlan:
                 skipped.append(f"{relative}: unable to read entity note")
                 continue
             identity = _hash(rule.kind, relative)
-            entity = Entity(identity, rule.kind, relative, _title(body, path.stem, rule.title_from), relative, body, "")
+            entity = Entity(
+                identity,
+                rule.kind,
+                relative,
+                _title(body, path.stem, rule.title_from),
+                relative,
+                body,
+                "",
+            )
             entities.append(replace(entity, content_hash=_entity_hash(entity)))
             if rule.decisions:
-                log_path = path.parent / rule.decisions.path_template.replace("{note_stem}", path.stem)
+                log_path = path.parent / rule.decisions.path_template.replace(
+                    "{note_stem}", path.stem
+                )
                 if log_path.exists():
                     log_relative = _relative(root, log_path)
                     try:
@@ -107,17 +124,26 @@ def build_plan(config: MemoryConfig) -> ImportPlan:
                         try:
                             calendar_date.fromisoformat(date)
                         except ValueError:
-                            skipped.append(f"{log_relative}: invalid decision date on line {number}")
+                            skipped.append(
+                                f"{log_relative}: invalid decision date on line {number}"
+                            )
                             continue
-                        decision = Decision(_hash(identity, date, decision_body), identity, date, decision_body, log_relative, "")
+                        decision = Decision(
+                            _hash(identity, date, decision_body),
+                            identity,
+                            date,
+                            decision_body,
+                            log_relative,
+                            "",
+                        )
                         decisions.append(replace(decision, content_hash=_decision_hash(decision)))
-    for rule in config.journals:
-        for path in sorted(root.glob(rule.glob)):
+    for journal_rule in config.journals:
+        for path in sorted(root.glob(journal_rule.glob)):
             if not path.is_file():
                 continue
             relative = _relative(root, path)
             try:
-                date = datetime.strptime(path.stem, rule.date_pattern).date().isoformat()
+                date = datetime.strptime(path.stem, journal_rule.date_pattern).date().isoformat()
             except ValueError:
                 skipped.append(f"{relative}: filename does not match journal date_pattern")
                 continue
@@ -133,7 +159,16 @@ def build_plan(config: MemoryConfig) -> ImportPlan:
 
 def apply_plan(store: MemoryRepository, plan: ImportPlan) -> ImportReport:
     counts = {"created": 0, "updated": 0, "unchanged": 0}
-    records = (*plan.entities, *plan.decisions, *plan.journals)
-    for record in records:
-        counts[store.upsert(record)] += 1
-    return ImportReport(len(records), counts["created"], counts["updated"], counts["unchanged"], plan.skipped)
+    for entity in plan.entities:
+        counts[store.upsert(entity)] += 1
+    for decision in plan.decisions:
+        counts[store.upsert(decision)] += 1
+    for journal in plan.journals:
+        counts[store.upsert(journal)] += 1
+    return ImportReport(
+        len(plan.entities) + len(plan.decisions) + len(plan.journals),
+        counts["created"],
+        counts["updated"],
+        counts["unchanged"],
+        plan.skipped,
+    )

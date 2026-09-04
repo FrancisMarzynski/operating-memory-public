@@ -10,6 +10,7 @@ from typing import Sequence
 
 from .config import ConfigError, load_config
 from .importer import apply_plan, build_plan
+from .model import ImportReport
 from .store import MemoryStore
 
 
@@ -35,7 +36,7 @@ def _parser() -> argparse.ArgumentParser:
     return parser
 
 
-def _report(report: object) -> None:
+def _report(report: ImportReport) -> None:
     print(" ".join(f"{key}={value}" for key, value in report.__dict__.items() if key != "skipped"))
     for skipped in report.skipped:
         print(f"skipped: {skipped}")
@@ -53,8 +54,15 @@ def main(arguments: Sequence[str] | None = None) -> int:
         if args.command == "import":
             plan = build_plan(config)
             if args.dry_run:
-                from .model import ImportReport
-                _report(ImportReport(len(plan.entities) + len(plan.decisions) + len(plan.journals), 0, 0, 0, plan.skipped))
+                _report(
+                    ImportReport(
+                        len(plan.entities) + len(plan.decisions) + len(plan.journals),
+                        0,
+                        0,
+                        0,
+                        plan.skipped,
+                    )
+                )
                 return 0
             _report(apply_plan(MemoryStore(args.database), plan))
             return 0
@@ -67,10 +75,33 @@ def main(arguments: Sequence[str] | None = None) -> int:
             if entity is None:
                 print("entity not found")
                 return 1
-            print(json.dumps({"kind": entity.kind, "key": entity.key, "title": entity.title, "source_path": entity.source_path, "body": entity.body}, sort_keys=True))
+            print(
+                json.dumps(
+                    {
+                        "kind": entity.kind,
+                        "key": entity.key,
+                        "title": entity.title,
+                        "source_path": entity.source_path,
+                        "body": entity.body,
+                    },
+                    sort_keys=True,
+                )
+            )
             return 0
         decisions = store.decisions_for(args.kind, args.key)
-        print(json.dumps([{"date": decision.date, "body": decision.body, "source_path": decision.source_path} for decision in decisions], sort_keys=True))
+        print(
+            json.dumps(
+                [
+                    {
+                        "date": decision.date,
+                        "body": decision.body,
+                        "source_path": decision.source_path,
+                    }
+                    for decision in decisions
+                ],
+                sort_keys=True,
+            )
+        )
         return 0
     except (ConfigError, ValueError) as error:
         parser.error(str(error))
