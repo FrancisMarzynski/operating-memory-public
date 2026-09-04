@@ -64,7 +64,9 @@ def main(arguments: Sequence[str] | None = None) -> int:
                     )
                 )
                 return 0
-            _report(apply_plan(MemoryStore(args.database), plan))
+            with MemoryStore(args.database) as store:
+                report = apply_plan(store, plan)
+            _report(report)
             return 0
         store = MemoryStore(args.database)
         if args.command == "kinds":

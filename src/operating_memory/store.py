@@ -5,6 +5,7 @@ from __future__ import annotations
 import sqlite3
 from contextlib import contextmanager
 from pathlib import Path
+from types import TracebackType
 from typing import Generator, Protocol
 
 from .model import Decision, Entity, JournalEntry
@@ -24,12 +25,15 @@ class MemoryStore:
 
     def __init__(self, database: Path) -> None:
         self.database = database
+        self._connection: sqlite3.Connection | None = None
 
-    @contextmanager
-    def _write_connection(self) -> Generator[sqlite3.Connection, None, None]:
+    def __enter__(self) -> MemoryStore:
+        if self._connection is not None:
+            raise RuntimeError("MemoryStore is already open")
         connection = sqlite3.connect(self.database)
         try:
             connection.row_factory = sqlite3.Row
+            connection.execute("PRAGMA foreign_keys = ON")
             connection.executescript("""
                 CREATE TABLE IF NOT EXISTS entities (
                   identity TEXT PRIMARY KEY, kind TEXT NOT NULL, key TEXT NOT NULL,
@@ -49,10 +53,29 @@ class MemoryStore:
                   body TEXT NOT NULL, content_hash TEXT NOT NULL
                 );
             """)
-            yield connection
-            connection.commit()
+        except BaseException:
+            connection.close()
+            raise
+        self._connection = connection
+        return self
+
+    def __exit__(
+        self,
+        exception_type: type[BaseException] | None,
+        exception: BaseException | None,
+        traceback: TracebackType | None,
+    ) -> None:
+        connection = self._connection
+        if connection is None:
+            return
+        try:
+            if exception_type is None:
+                connection.commit()
+            else:
+                connection.rollback()
         finally:
             connection.close()
+            self._connection = None
 
     @contextmanager
     def _read_connection(self) -> Generator[sqlite3.Connection, None, None]:
@@ -66,25 +89,27 @@ class MemoryStore:
 
     def upsert(self, record: Entity | Decision | JournalEntry) -> str:
         table, values = self._values(record)
-        with self._write_connection() as connection:
-            current = connection.execute(
-                f"SELECT content_hash FROM {table} WHERE identity = ?", (record.identity,)
-            ).fetchone()
-            if current is None:
-                columns = ", ".join(values)
-                marks = ", ".join("?" for _ in values)
-                connection.execute(
-                    f"INSERT INTO {table} ({columns}) VALUES ({marks})", tuple(values.values())
-                )
-                return "created"
-            if current["content_hash"] == record.content_hash:
-                return "unchanged"
-            setters = ", ".join(f"{column} = ?" for column in values if column != "identity")
+        connection = self._connection
+        if connection is None:
+            raise RuntimeError("MemoryStore writes require an open context")
+        current = connection.execute(
+            f"SELECT content_hash FROM {table} WHERE identity = ?", (record.identity,)
+        ).fetchone()
+        if current is None:
+            columns = ", ".join(values)
+            marks = ", ".join("?" for _ in values)
             connection.execute(
-                f"UPDATE {table} SET {setters} WHERE identity = ?",
-                (*[value for key, value in values.items() if key != "identity"], record.identity),
+                f"INSERT INTO {table} ({columns}) VALUES ({marks})", tuple(values.values())
             )
-            return "updated"
+            return "created"
+        if current["content_hash"] == record.content_hash:
+            return "unchanged"
+        setters = ", ".join(f"{column} = ?" for column in values if column != "identity")
+        connection.execute(
+            f"UPDATE {table} SET {setters} WHERE identity = ?",
+            (*[value for key, value in values.items() if key != "identity"], record.identity),
+        )
+        return "updated"
 
     @staticmethod
     def _values(record: Entity | Decision | JournalEntry) -> tuple[str, dict[str, str]]:
