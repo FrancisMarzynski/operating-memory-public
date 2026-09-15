@@ -26,12 +26,14 @@ class EntityRule:
     key_from: str
     title_from: str
     decisions: DecisionRule | None = None
+    exclude: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
 class JournalRule:
     glob: str
     date_pattern: str
+    exclude: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -98,9 +100,9 @@ def load_config(path: Path) -> MemoryConfig:
                 _required_string(decision.get("path_template"), template_field), template_field
             )
             remainder = template.replace("{note_stem}", "")
-            if template.count("{note_stem}") != 1 or "{" in remainder or "}" in remainder:
+            if template.count("{note_stem}") > 1 or "{" in remainder or "}" in remainder:
                 raise ConfigError(
-                    f"{template_field} must contain exactly one {{note_stem}} placeholder"
+                    f"{template_field} may contain at most one {{note_stem}} placeholder"
                 )
             line_template_field = f"{field}.decisions.line_template"
             line_template = decision.get("line_template", "{date} — {body}")
@@ -119,6 +121,7 @@ def load_config(path: Path) -> MemoryConfig:
                 key_from,
                 title_from,
                 decision_rule,
+                _optional_safe_relative_list(item.get("exclude"), f"{field}.exclude"),
             )
         )
 
@@ -133,6 +136,7 @@ def load_config(path: Path) -> MemoryConfig:
                     _required_string(item.get("glob"), f"{field}.glob"), f"{field}.glob"
                 ),
                 _required_string(item.get("date_pattern"), f"{field}.date_pattern"),
+                _optional_safe_relative_list(item.get("exclude"), f"{field}.exclude"),
             )
         )
     return MemoryConfig(1, notes_root, tuple(kinds), tuple(entities), tuple(journals))
@@ -143,6 +147,14 @@ def _safe_relative(value: str, field: str) -> str:
     if candidate.is_absolute() or ".." in candidate.parts:
         raise ConfigError(f"{field} must be relative to notes_root and cannot escape it")
     return value
+
+
+def _optional_safe_relative_list(value: object, field: str) -> tuple[str, ...]:
+    if value is None:
+        return ()
+    if not isinstance(value, list) or any(not isinstance(item, str) or not item for item in value):
+        raise ConfigError(f"{field} must be a list of non-empty strings")
+    return tuple(_safe_relative(item, field) for item in value)
 
 
 _TEMPLATE_PLACEHOLDER = re.compile(r"\{([^{}]*)\}")

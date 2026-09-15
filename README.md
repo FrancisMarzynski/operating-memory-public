@@ -80,6 +80,18 @@ and journals are optional import rules. The included configuration is the
 smallest working example: it imports project notes from `projects/*.md` and
 reference notes from `references/*.md`, relative to `notes_root`.
 
+Rules may also declare `exclude` as a list of safe, notes-root-relative glob
+patterns. Excluded notes are intentionally omitted and are not reported as
+skips, which is useful for template or archive folders:
+
+```toml
+[[entities]]
+kind = "client"
+glob = "clients/*/Overview.md"
+exclude = ["clients/_TEMPLATE/**"]
+key_from = "path"
+```
+
 If your decision logs do not use the default
 `{date} — {body}` form, declare your own, for example:
 
@@ -88,6 +100,10 @@ If your decision logs do not use the default
 path_template = "{note_stem}.decisions.log"
 line_template = "{date} | {body}"
 ```
+
+`path_template` may instead be a fixed sibling filename, such as
+`"Decision Log.md"`; `{note_stem}` remains available once for per-note log
+names.
 
 Malformed templates are rejected when the configuration loads, with an error
 naming the field. [The local memory-core guide](docs/memory-core.md) documents the
