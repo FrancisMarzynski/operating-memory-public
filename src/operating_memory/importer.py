@@ -7,6 +7,8 @@ import re
 from dataclasses import replace
 from datetime import date as calendar_date
 from datetime import datetime
+from fnmatch import fnmatchcase
+from functools import cache
 from pathlib import Path
 
 from .config import MemoryConfig
@@ -35,7 +37,14 @@ def _title(body: str, fallback: str, source: str) -> str:
         return fallback
     fence: str | None = None
     lines = body.splitlines()
-    for index, line in enumerate(lines):
+    start = 0
+    if lines and lines[0] == "---":
+        try:
+            start = lines.index("---", 1) + 1
+        except ValueError:
+            pass
+    for index in range(start, len(lines)):
+        line = lines[index]
         fence_match = FENCE.match(line)
         if fence_match:
             delimiter = fence_match.group(1)
@@ -86,6 +95,8 @@ def build_plan(config: MemoryConfig) -> ImportPlan:
             if not path.is_file():
                 continue
             relative = _relative(root, path)
+            if _is_excluded(relative, rule.exclude):
+                continue
             try:
                 body = path.read_text(encoding="utf-8")
             except (OSError, UnicodeDecodeError):
@@ -141,6 +152,8 @@ def build_plan(config: MemoryConfig) -> ImportPlan:
             if not path.is_file():
                 continue
             relative = _relative(root, path)
+            if _is_excluded(relative, journal_rule.exclude):
+                continue
             try:
                 date = datetime.strptime(path.stem, journal_rule.date_pattern).date().isoformat()
             except ValueError:
@@ -154,6 +167,32 @@ def build_plan(config: MemoryConfig) -> ImportPlan:
             journal = JournalEntry(_hash("journal", relative), date, relative, body, "")
             journals.append(replace(journal, content_hash=_journal_hash(journal)))
     return ImportPlan(tuple(entities), tuple(decisions), tuple(journals), tuple(skipped))
+
+
+def _is_excluded(relative: str, patterns: tuple[str, ...]) -> bool:
+    return any(_glob_matches(relative, pattern) for pattern in patterns)
+
+
+def _glob_matches(relative: str, pattern: str) -> bool:
+    path_parts = tuple(relative.split("/"))
+    pattern_parts = tuple(pattern.split("/"))
+
+    @cache
+    def matches(path_index: int, pattern_index: int) -> bool:
+        if pattern_index == len(pattern_parts):
+            return path_index == len(path_parts)
+        segment = pattern_parts[pattern_index]
+        if segment == "**":
+            return matches(path_index, pattern_index + 1) or (
+                path_index < len(path_parts) and matches(path_index + 1, pattern_index)
+            )
+        return (
+            path_index < len(path_parts)
+            and fnmatchcase(path_parts[path_index], segment)
+            and matches(path_index + 1, pattern_index + 1)
+        )
+
+    return matches(0, 0)
 
 
 def apply_plan(store: MemoryRepository, plan: ImportPlan) -> ImportReport:

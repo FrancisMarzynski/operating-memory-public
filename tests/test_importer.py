@@ -156,6 +156,68 @@ class ImporterTests(unittest.TestCase):
 
         self.assertEqual(plan.entities[0].title, "Atlas heading")
 
+    def test_first_heading_skips_yaml_frontmatter_and_preserves_existing_fallbacks(self) -> None:
+        atlas = self.root / "notes/projects/nested/atlas.md"
+        atlas.write_text(
+            "---\nsource_classes: [client_decision_log]\n---\n# Real Heading\n",
+            encoding="utf-8",
+        )
+
+        plan = build_plan(self.config)
+
+        self.assertEqual(plan.entities[0].title, "Real Heading")
+        atlas.write_text("---\nsource_classes: [client_decision_log]\n", encoding="utf-8")
+        self.assertEqual(build_plan(self.config).entities[0].title, "atlas")
+
+    def test_excludes_entity_and_journal_paths_without_reporting_them_as_skipped(self) -> None:
+        (self.root / "notes/projects/_TEMPLATE/nested").mkdir(parents=True)
+        (self.root / "notes/projects/_TEMPLATE/nested/overview.md").write_text(
+            "# Template", encoding="utf-8"
+        )
+        (self.root / "notes/journal/archive").mkdir()
+        (self.root / "notes/journal/archive/2026-01-05.md").write_text(
+            "Archived", encoding="utf-8"
+        )
+        config_text = CONFIG.replace(
+            'glob = "projects/**/*.md"',
+            'glob = "projects/**/*.md"\nexclude = ["projects/_TEMPLATE/**"]',
+        ).replace(
+            'glob = "journal/*.md"',
+            'glob = "journal/**/*.md"\nexclude = ["journal/archive/**"]',
+        )
+        (self.root / "operating-memory.toml").write_text(config_text, encoding="utf-8")
+
+        plan = build_plan(load_config(self.root / "operating-memory.toml"))
+
+        self.assertEqual(
+            {entity.source_path for entity in plan.entities},
+            {"projects/nested/atlas.md", "references/guide.md"},
+        )
+        self.assertEqual(
+            {journal.source_path for journal in plan.journals}, {"journal/2026-01-04.md"}
+        )
+        self.assertNotIn("projects/_TEMPLATE/nested/overview.md", "\n".join(plan.skipped))
+        self.assertNotIn("journal/archive/2026-01-05.md", "\n".join(plan.skipped))
+
+    def test_fixed_name_sibling_decision_log_imports_while_per_note_logs_remain_supported(
+        self,
+    ) -> None:
+        config_text = CONFIG.replace(
+            'path_template = "{note_stem}.decisions.log"',
+            'path_template = "Decision Log.md"',
+        ).replace('glob = "projects/**/*.md"', 'glob = "projects/**/atlas.md"')
+        (self.root / "operating-memory.toml").write_text(config_text, encoding="utf-8")
+        (self.root / "notes/projects/nested/atlas.decisions.log").unlink()
+        (self.root / "notes/projects/nested/Decision Log.md").write_text(
+            "2026-01-03 — Fixed sibling log.\n", encoding="utf-8"
+        )
+
+        plan = build_plan(load_config(self.root / "operating-memory.toml"))
+
+        self.assertEqual(len(plan.decisions), 1)
+        self.assertEqual(plan.decisions[0].body, "Fixed sibling log.")
+        self.assertEqual(plan.decisions[0].source_path, "projects/nested/Decision Log.md")
+
     def test_importer_accepts_a_non_sqlite_repository(self) -> None:
         repository = RecordingRepository()
 
