@@ -170,8 +170,8 @@ class ImporterTests(unittest.TestCase):
         self.assertEqual(build_plan(self.config).entities[0].title, "atlas")
 
     def test_excludes_entity_and_journal_paths_without_reporting_them_as_skipped(self) -> None:
-        (self.root / "notes/projects/_TEMPLATE").mkdir()
-        (self.root / "notes/projects/_TEMPLATE/overview.md").write_text(
+        (self.root / "notes/projects/_TEMPLATE/nested").mkdir(parents=True)
+        (self.root / "notes/projects/_TEMPLATE/nested/overview.md").write_text(
             "# Template", encoding="utf-8"
         )
         (self.root / "notes/journal/archive").mkdir()
@@ -196,7 +196,7 @@ class ImporterTests(unittest.TestCase):
         self.assertEqual(
             {journal.source_path for journal in plan.journals}, {"journal/2026-01-04.md"}
         )
-        self.assertNotIn("projects/_TEMPLATE/overview.md", "\n".join(plan.skipped))
+        self.assertNotIn("projects/_TEMPLATE/nested/overview.md", "\n".join(plan.skipped))
         self.assertNotIn("journal/archive/2026-01-05.md", "\n".join(plan.skipped))
 
     def test_fixed_name_sibling_decision_log_imports_while_per_note_logs_remain_supported(

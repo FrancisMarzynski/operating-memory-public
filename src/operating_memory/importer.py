@@ -7,6 +7,8 @@ import re
 from dataclasses import replace
 from datetime import date as calendar_date
 from datetime import datetime
+from fnmatch import fnmatchcase
+from functools import cache
 from pathlib import Path
 
 from .config import MemoryConfig
@@ -168,7 +170,29 @@ def build_plan(config: MemoryConfig) -> ImportPlan:
 
 
 def _is_excluded(relative: str, patterns: tuple[str, ...]) -> bool:
-    return any(Path(relative).match(pattern) for pattern in patterns)
+    return any(_glob_matches(relative, pattern) for pattern in patterns)
+
+
+def _glob_matches(relative: str, pattern: str) -> bool:
+    path_parts = tuple(relative.split("/"))
+    pattern_parts = tuple(pattern.split("/"))
+
+    @cache
+    def matches(path_index: int, pattern_index: int) -> bool:
+        if pattern_index == len(pattern_parts):
+            return path_index == len(path_parts)
+        segment = pattern_parts[pattern_index]
+        if segment == "**":
+            return matches(path_index, pattern_index + 1) or (
+                path_index < len(path_parts) and matches(path_index + 1, pattern_index)
+            )
+        return (
+            path_index < len(path_parts)
+            and fnmatchcase(path_parts[path_index], segment)
+            and matches(path_index + 1, pattern_index + 1)
+        )
+
+    return matches(0, 0)
 
 
 def apply_plan(store: MemoryRepository, plan: ImportPlan) -> ImportReport:
