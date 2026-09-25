@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 import sqlite3
+from collections.abc import Generator
 from contextlib import contextmanager
 from pathlib import Path
 from types import TracebackType
-from typing import Generator, Protocol
+from typing import Protocol
 
 from .model import Decision, Entity, JournalEntry
 

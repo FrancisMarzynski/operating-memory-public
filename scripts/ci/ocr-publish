@@ -1,0 +1,38 @@
+#!/usr/bin/env bash
+# Publish ocr.json (written by the delegated reviewer) as a sticky PR comment and
+# job summary; fail on critical/high. A missing or malformed file fails closed.
+set -euo pipefail
+[[ -s ocr.json ]] || { echo "::error::the reviewer wrote no ocr.json (review did not complete: check the subscription token CLAUDE_CODE_OAUTH_TOKEN, or usage limits). No review, no merge."; exit 1; }
+
+python3 - <<'PY'
+import json, os
+d = json.load(open("ocr.json"))
+cs = d.get("comments") or []
+order = {"critical": 0, "high": 1, "medium": 2, "low": 3}
+cs.sort(key=lambda c: order.get(c.get("severity", "low"), 4))
+blocking = [c for c in cs if c.get("severity") in ("critical", "high")]
+lines = ["<!-- ocr-review -->", f"### open-code-review: {len(cs)} finding(s), {len(blocking)} blocking", ""]
+for c in cs:
+    loc = f"{c.get('path', '?')}:{c.get('start_line', '?')}"
+    lines.append(f"- **{c.get('severity','?')}** `{loc}` ({c.get('category','')}): {c.get('content', '').strip()}")
+if not cs:
+    lines.append("No findings.")
+lines += ["", f"<sub>{d.get('llm',{}).get('model','')}</sub>"]
+body = "\n".join(lines)
+open("ocr-comment.md", "w").write(body)
+open(os.environ["GITHUB_STEP_SUMMARY"], "a").write(body + "\n")
+open("ocr-blocking", "w").write(str(len(blocking)))
+PY
+
+existing="$(gh api "repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/comments" --jq '[.[] | select(.body | startswith("<!-- ocr-review -->")) | .id][0] // empty')"
+if [[ -n "$existing" ]]; then
+  gh api -X PATCH "repos/${GITHUB_REPOSITORY}/issues/comments/${existing}" -F body=@ocr-comment.md >/dev/null
+else
+  gh pr comment "$PR_NUMBER" --body-file ocr-comment.md >/dev/null
+fi
+
+n="$(cat ocr-blocking)"
+if (( n > 0 )); then
+  echo "::error::open-code-review found $n critical/high finding(s); see the PR comment"
+  exit 1
+fi

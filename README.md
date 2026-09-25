@@ -112,10 +112,7 @@ configuration format and command semantics.
 ## Development
 
 ```sh
-uv run ruff check .
-uv run mypy src
-uv run pytest
-uv run python scripts/check_boundary.py
+scripts/check
 ```
 
 See [coding standards](CODING_STANDARDS.md) before changing the core.

@@ -1,0 +1,12 @@
+# Same gate as .claude/settings.json: an agent may not end a turn while the check is red.
+[[hooks.Stop]]
+[[hooks.Stop.hooks]]
+type = "command"
+command = 'sh -c "$(git rev-parse --show-toplevel)/scripts/sdlc-stop-hook"'
+timeout = 600
+
+[[hooks.SubagentStop]]
+[[hooks.SubagentStop.hooks]]
+type = "command"
+command = 'sh -c "$(git rev-parse --show-toplevel)/scripts/sdlc-stop-hook"'
+timeout = 600

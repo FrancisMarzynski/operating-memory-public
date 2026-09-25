@@ -4,17 +4,57 @@ on:
   push:
   pull_request:
 
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
 jobs:
   verify:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v5
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v5
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.11"
-      - run: uv sync --group dev
-      - run: uv run ruff check .
-      - run: uv run mypy src
-      - run: uv run pytest
-      - run: uv run python scripts/check_boundary.py
+      - run: scripts/check
+
+  review:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      pull-requests: write
+    env:
+      BASE_REF: origin/${{ github.event.pull_request.base.ref }}
+      PR_NUMBER: ${{ github.event.pull_request.number }}
+      SDLC_STOP_HOOK: "off"
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+      - name: install open-code-review
+        run: npm install -g --silent @alibaba-group/open-code-review@1.12.9 --allow-scripts=@alibaba-group/open-code-review
+      - name: review (Claude, subscription)
+        uses: anthropics/claude-code-action@9171db3e57d6a3140a37ddc2ba92788584e0ead6 # v1.0.234
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          github_token: ${{ github.token }}
+          prompt: |
+            Follow scripts/ci/ocr-review-prompt.md exactly. BASE_REF=${{ env.BASE_REF }} PR_NUMBER=${{ env.PR_NUMBER }}.
+          claude_args: |
+            --model ${{ vars.REVIEW_MODEL || 'claude-sonnet-5' }}
+            --max-turns 60
+            --allowedTools "Bash(ocr delegate:*),Bash(git diff:*),Bash(git log:*),Bash(git show:*),Read,Grep,Glob,Write"
+      - name: publish findings
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: scripts/ci/ocr-publish
