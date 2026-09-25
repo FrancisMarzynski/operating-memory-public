@@ -1,0 +1,46 @@
+#!/usr/bin/env bash
+# Stop / SubagentStop hook for Claude Code and Codex: an agent may not end its
+# turn while the repo's check (.sdlc.json "check", default scripts/check) is red. Exit 2 + stderr = "keep working, here's why".
+# Skips when nothing changed, when the exact tree already passed, and during the
+# SDLC test-writing phase (acceptance tests are red by design until `sdlc lock`).
+set -uo pipefail
+input="$(cat)"
+# Read-only sessions (e.g. the CI review job) opt out explicitly.
+[[ "${SDLC_STOP_HOOK:-on}" == "off" ]] && exit 0
+root="$(git rev-parse --show-toplevel 2>/dev/null)" || exit 0
+cd "$root" || exit 0
+gitdir="$(git rev-parse --absolute-git-dir)"
+
+[[ "$(cat "$gitdir/sdlc-phase" 2>/dev/null)" == "tests" ]] && exit 0
+
+base="origin/$(python3 -c 'import json;print(json.load(open(".sdlc.json"))["default_branch"])' 2>/dev/null || echo main)"
+untracked="$(git ls-files --others --exclude-standard)"
+# Skip only when we can prove nothing changed. If the base can't be resolved
+# (no remote, not fetched, offline), fail safe: run the check.
+ahead="$(git rev-list --count "$base..HEAD" 2>/dev/null)" || ahead=unknown
+if git diff --quiet HEAD 2>/dev/null && [[ -z "$untracked" ]] && [[ "$ahead" == 0 ]]; then
+  exit 0
+fi
+
+key="$({ git rev-parse HEAD; git diff HEAD; git ls-files -z --others --exclude-standard | xargs -0 shasum 2>/dev/null; } | shasum | cut -c1-40)"
+[[ "$(cat "$gitdir/sdlc-check-pass" 2>/dev/null)" == "$key" ]] && exit 0
+
+active="$(printf '%s' "$input" | python3 -c 'import json,sys;print(json.load(sys.stdin).get("stop_hook_active", False))' 2>/dev/null)"
+[[ "$active" == "True" ]] || echo 0 > "$gitdir/sdlc-stop-blocks"
+blocks="$(cat "$gitdir/sdlc-stop-blocks" 2>/dev/null || echo 0)"
+
+check="$(python3 -c 'import json;print(json.load(open(".sdlc.json"))["check"])' 2>/dev/null || echo scripts/check)"
+if out="$(bash -c "$check" 2>&1)"; then
+  echo "$key" > "$gitdir/sdlc-check-pass"; echo 0 > "$gitdir/sdlc-stop-blocks"; exit 0
+fi
+blocks=$((blocks + 1)); echo "$blocks" > "$gitdir/sdlc-stop-blocks"
+if (( blocks > 3 )); then
+  echo "The check is still red after 3 attempts. Stop and report it as a blocker; do not claim the work is done." >&2
+  exit 0
+fi
+{
+  echo "The check ($check) is red, so you cannot finish yet. Fix the cause; never weaken a check, skip a test, or edit locked acceptance tests."
+  echo "Last output:"
+  printf '%s\n' "$out" | grep -v 'ResourceWarning\|tracemalloc\|^  def \|__warn(' | tail -40
+} >&2
+exit 2

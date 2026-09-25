@@ -1,0 +1,7 @@
+{
+  "check": "scripts/check",
+  "static": "uv run --quiet ruff check . && uv run --quiet basedpyright && uv run --quiet mypy src",
+  "acceptance": "uv run --quiet python -m unittest discover -s tests/acceptance -t .",
+  "acceptance_dir": "tests/acceptance",
+  "default_branch": "main"
+}

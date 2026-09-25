@@ -1,17 +1,24 @@
 # Coding standards
 
-This is intentionally short. It records only rules surfaced by reviews of this
-codebase; it is not a copy of another repository's policy.
+Read during review. Mechanical rules are enforced by `scripts/check`; the
+rules below preserve boundaries that a tool cannot reliably judge.
 
-- Keep Markdown authoritative. Imports are projections, so changes must retain
+## Invariants (blocking)
+
+1. Keep Markdown authoritative. Imports are projections, so changes must retain
   deterministic identities and idempotent re-imports.
-- Treat an import as one transaction. The storage lifetime owns schema setup,
+2. Treat an import as one transaction. The storage lifetime owns schema setup,
   commit, rollback, and foreign-key enforcement.
-- Validate configurable syntax at the boundary with field-named errors. Do not
+3. Validate configurable syntax at the boundary with field-named errors. Do not
   accept malformed templates or silently substitute a different meaning.
-- Keep the repository interface narrow. Add a storage operation only when a
+4. Keep the repository interface narrow. Add a storage operation only when a
   caller needs a distinct persistence capability, not as a convenience wrapper.
-- Preserve explicit CLI mutation modes. A command that changes storage must
+5. Preserve explicit CLI mutation modes. A command that changes storage must
   require an affirmative mode rather than inferring permission from invocation.
-- Add focused tests at the changed seam and run the full repository checks
-  before review.
+6. Preserve the public extraction boundary enforced by `scripts/check_boundary.py`.
+   Do not commit private notes, configuration, or integrations.
+
+## Judgement
+
+- Add focused tests at the changed seam and run `scripts/check` before review.
+- Prefer black-box CLI tests following `tests/test_cli.py` when behavior is visible there.

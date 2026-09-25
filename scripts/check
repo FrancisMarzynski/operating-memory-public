@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+# The shared local and CI verification gate.
+set -euo pipefail
+cd "$(dirname "$0")/.."
+
+printf '\n== sync\n'
+uv sync --quiet --locked --group dev
+
+printf '\n== lint\n'
+uv run --quiet ruff check .
+
+printf '\n== types\n'
+uv run --quiet basedpyright
+uv run --quiet mypy src
+
+printf '\n== tests\n'
+uv run --quiet pytest
+
+printf '\n== public extraction boundary\n'
+uv run --quiet python scripts/check_boundary.py
+
+printf '\n✓ check passed\n'

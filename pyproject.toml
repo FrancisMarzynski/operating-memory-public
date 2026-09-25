@@ -13,6 +13,7 @@ om = "operating_memory.cli:main"
 
 [dependency-groups]
 dev = [
+    "basedpyright>=1.31,<2",
     "mypy>=1.18.2",
     "pytest>=8.4.2",
     "ruff>=0.13.1",
@@ -32,7 +33,22 @@ line-length = 100
 target-version = "py311"
 
 [tool.ruff.lint]
-select = ["E", "F", "I"]
+select = ["F", "E9", "B", "PLE", "UP", "I", "S"]
+
+[tool.ruff.lint.per-file-ignores]
+# The table and column names are selected from the fixed Entity/Decision/JournalEntry
+# schema; record values remain bound parameters.
+"src/operating_memory/store.py" = ["S608"]
+# The boundary checker intentionally invokes the installed git executable.
+"scripts/check_boundary.py" = ["S607"]
+# Tests invoke fixed local commands and assert their exit status.
+"tests/**" = ["S603", "S607"]
+
+[tool.basedpyright]
+include = ["src", "scripts", "tests"]
+exclude = ["**/__pycache__", ".venv"]
+pythonVersion = "3.11"
+typeCheckingMode = "basic"
 
 [tool.mypy]
 files = ["src"]
